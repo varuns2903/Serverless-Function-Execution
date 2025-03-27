@@ -3,13 +3,15 @@
 ## Week 1: Project Setup and Core Infrastructure
 
 ### Project Planning and Environment Setup
+
 - [ ] Define project architecture and create system design diagrams
-- [ ] Set up development environment (Git repository, CI/CD pipeline)
+- [x] Set up development environment (Git repository, CI/CD pipeline)
 - [ ] Choose and install required dependencies
 - [ ] Create project folder structure
 - [ ] **Checkpoint:** Repository initialized with basic structure and README
 
 ### Backend API Foundation
+
 - [ ] Implement basic API server (Express/FastAPI)
 - [ ] Create database schema for function storage
 - [ ] Implement function metadata storage (name, route, language, timeout settings)
@@ -17,6 +19,7 @@
 - [ ] **Checkpoint:** API can store and retrieve function definitions
 
 ### Your First Virtualization Technology
+
 - [ ] Set up Docker as the first virtualization technology
 - [ ] Create base container images for Python and JavaScript functions
 - [ ] Implement function packaging mechanism
@@ -29,6 +32,7 @@
 ## Week 2: Enhanced Execution and Second Virtualization Technology
 
 ### Execution Engine Improvements
+
 - [ ] Implement request routing to appropriate function containers
 - [ ] Add request/response handling and error management
 - [ ] Implement function warm-up mechanism (e.g., dummy caching and function calls)
@@ -36,6 +40,7 @@
 - [ ] **Checkpoint:** Functions can be executed reliably with proper request/response handling
 
 ### Second Virtualization Technology
+
 - [ ] Set up second virtualization technology (Firecracker MicroVMs or Nanos Unikernel; fallback to gVisor if needed)
 - [ ] Create packaging mechanism for the second technology
 - [ ] Implement execution engine support for the second technology
@@ -43,6 +48,7 @@
 - [ ] **Checkpoint:** Functions can be executed using either virtualization technology
 
 ### Metrics Collection
+
 - [ ] Implement metrics collection for function execution (response time, errors, resources)
 - [ ] Create storage mechanism for metrics
 - [ ] Implement basic aggregation of metrics
@@ -53,18 +59,21 @@
 ## Week 3: Frontend, Monitoring Dashboard, and Integration
 
 ### Basic Frontend
+
 - [ ] Create frontend application structure (Streamlit or similar)
 - [ ] Implement function deployment interface
 - [ ] Create function management views (list, create, update, delete)
 - [ ] **Checkpoint:** Users can deploy and manage functions through the UI
 
 ### Monitoring Dashboard
+
 - [ ] Implement metrics visualization components
 - [ ] Create dashboard views for individual function performance
 - [ ] Implement system-wide statistics view
 - [ ] **Checkpoint:** Dashboard displays metrics and statistics
 
 ### Integration and Polishing
+
 - [ ] Integrate all components (frontend, backend, execution engine)
 - [ ] Implement authentication/authorization (if time permits)
 - [ ] Conduct end-to-end testing
@@ -75,6 +84,7 @@
 ---
 
 ## Bonus Tasks (If Time Permits)
+
 - [ ] Implement auto-scaling based on request load
 - [ ] Add support for environment variables in functions
 - [ ] Create cost analysis comparing virtualization technologies
