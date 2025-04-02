@@ -89,3 +89,26 @@
 - [ ] Add support for environment variables in functions
 - [ ] Create cost analysis comparing virtualization technologies
 - [ ] Add support for additional programming languages
+
+## Running the Project
+
+```
+sudo apt update
+sudo apt install python3.12-dev build-essential libpq-dev libyaml-dev
+```
+
+```
+pip install hatchling
+pip install -e .
+```
+* Ensure docker is running
+```
+docker build -t python-base -f containers/python-base.Dockerfile .
+docker build -t js-base -f containers/js-base.Dockerfile .
+```
+```
+uvicorn api.main:app --reload --port 8000
+```
+```
+streamlit run frontend/app.py
+```
