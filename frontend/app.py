@@ -3,7 +3,8 @@ import requests
 import plotly.express as px
 import pandas as pd
 import json
-from datetime import datetime
+import time
+import pytz
 
 API_URL = "http://localhost:8000"
 
@@ -19,7 +20,7 @@ def api_call(method, endpoint, data=None):
         elif method == "DELETE":
             response = requests.delete(url)
         response.raise_for_status()
-        return response.json()
+        return response.json() if response.text else {"status": "success"}
     except requests.exceptions.HTTPError as e:
         st.error(f"API Error: {e.response.status_code} - {e.response.text}")
         return None
@@ -33,6 +34,13 @@ def main():
 
     # Sidebar for Navigation
     page = st.sidebar.selectbox("Navigate", ["Deploy Function", "Manage Functions", "Execute Function", "Metrics Dashboard"])
+
+    # Track last visited page to reset form if needed
+    if "last_page" not in st.session_state:
+        st.session_state.last_page = ""
+
+    if page != st.session_state.last_page:
+        st.session_state.pop("loaded_func", None)
 
     # Deploy Function Page
     if page == "Deploy Function":
@@ -61,36 +69,64 @@ def main():
         funcs = api_call("GET", "/functions/")
         if funcs:
             df = pd.DataFrame(funcs)
-            st.dataframe(df, use_container_width=True)
+            display_columns = ["id", "name", "language", "code", "timeout"]
+            st.dataframe(df[display_columns], use_container_width=True)
 
-            # Edit or Delete Function
+            if "loaded_func" not in st.session_state:
+                st.session_state.loaded_func = None
+
             func_id = st.number_input("Function ID to Edit/Delete", min_value=1, step=1)
+
             if st.button("Load Function"):
                 func = api_call("GET", f"/functions/{func_id}")
                 if func:
-                    with st.form("edit_form"):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            name = st.text_input("Function Name", value=func["name"])
-                            language = st.selectbox("Language", ["python", "javascript"], index=["python", "javascript"].index(func["language"]))
-                        with col2:
-                            timeout = st.number_input("Timeout (seconds)", min_value=1, value=func["timeout"])
-                        code = st.text_area("Code", value=func["code"], height=200)
-                        col3, col4 = st.columns(2)
-                        with col3:
-                            update = st.form_submit_button("Update")
-                        with col4:
-                            delete = st.form_submit_button("Delete")
-                        
-                        if update:
-                            updated_func = {"name": name, "language": language, "code": code, "timeout": timeout}
-                            result = api_call("PUT", f"/functions/{func_id}", updated_func)
-                            if result:
-                                st.success(f"Function {func_id} updated!")
-                        if delete:
-                            result = api_call("DELETE", f"/functions/{func_id}")
-                            if result:
-                                st.success(f"Function {func_id} deleted!")
+                    st.session_state.loaded_func = func
+                else:
+                    st.warning(f"Function {func_id} not found.")
+
+            if st.session_state.loaded_func:
+                func = st.session_state.loaded_func
+
+                with st.form("edit_form"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        name = st.text_input("Function Name", value=func["name"])
+                        language = st.selectbox(
+                            "Language", ["python", "javascript"],
+                            index=["python", "javascript"].index(func["language"])
+                        )
+                    with col2:
+                        timeout = st.number_input("Timeout (seconds)", min_value=1, value=func["timeout"])
+                    code = st.text_area("Code", value=func["code"], height=200)
+
+                    col3, col4 = st.columns(2)
+                    with col3:
+                        update_clicked = st.form_submit_button("Update")
+                    with col4:
+                        delete_clicked = st.form_submit_button("Delete")
+
+                    if update_clicked:
+                        updated_func = {
+                            "id": func_id,
+                            "name": name,
+                            "language": language,
+                            "code": code,
+                            "timeout": timeout
+                        }
+                        result = api_call("PUT", f"/functions/{func_id}", updated_func)
+                        if result:
+                            st.success(f"Function {func_id} updated successfully!")
+                            st.session_state.loaded_func = None
+                            time.sleep(1.5)
+                            st.rerun()
+
+                    if delete_clicked:
+                        result = api_call("DELETE", f"/functions/{func_id}")
+                        if result:
+                            st.success(f"Function {func_id} deleted successfully!")
+                            st.session_state.loaded_func = None
+                            time.sleep(1.5)
+                            st.rerun()
         else:
             st.info("No functions available.")
 
@@ -104,7 +140,7 @@ def main():
             payload = st.text_area("Payload (JSON)", "{}", height=100)
         if st.button("Execute"):
             try:
-                payload_dict = json.loads(payload)  # Validate JSON
+                payload_dict = json.loads(payload)
                 result = api_call("POST", f"/execute/{func_id}", payload_dict)
                 if result:
                     st.subheader("Execution Result")
@@ -120,12 +156,17 @@ def main():
         if metrics:
             df = pd.DataFrame(metrics)
             if not df.empty:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+
+                # Convert to IST
+                ist = pytz.timezone("Asia/Kolkata")
+                df["timestamp"] = df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(ist)
+
                 st.write("Metrics Data:", df)
                 fig = px.line(df, x="timestamp", y="response_time", color="func_id", 
                               title="Response Time Over Time", labels={"response_time": "Response Time (s)"})
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # Additional Stats
+
                 st.subheader("Statistics")
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Average Response Time", f"{df['response_time'].mean():.2f} s")
@@ -135,6 +176,9 @@ def main():
                 st.info("No metrics available for this filter.")
         else:
             st.info("No metrics available.")
+
+    # Update last visited page
+    st.session_state.last_page = page
 
 if __name__ == "__main__":
     main()

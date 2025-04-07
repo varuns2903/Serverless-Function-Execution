@@ -1,16 +1,24 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from .models import Base, Function, get_db, engine
-from .crud import create_function, get_function, get_functions, update_function, delete_function
+from .crud import create_function, get_functions, get_function, update_function, delete_function
 from .execution import execute_function
 from .metrics import Metrics
+import os
 
 app = FastAPI()
 metrics = Metrics()
 
 @app.on_event("startup")
 def startup():
-    Base.metadata.create_all(bind=engine)
+    # Only recreate tables in development mode (e.g., when DEBUG is set)
+    if os.getenv("DEBUG", "false").lower() == "true":
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+        print("Database tables dropped and recreated for development.")
+    else:
+        # In production, just ensure tables exist without dropping
+        Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 async def root():

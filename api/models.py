@@ -11,7 +11,6 @@ class Function(Base):
     __tablename__ = "functions"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    route = Column(String)
     language = Column(String)
     timeout = Column(Integer)
     code = Column(String)
