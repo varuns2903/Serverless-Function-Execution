@@ -14,6 +14,7 @@ class Function(Base):
     language = Column(String)
     timeout = Column(Integer)
     code = Column(String)
+    route = Column(String, nullable=True, unique=True)
 
 def get_db():
     db = SessionLocal()
