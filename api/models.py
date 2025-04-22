@@ -9,12 +9,14 @@ Base = declarative_base()
 
 class Function(Base):
     __tablename__ = "functions"
+    
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     language = Column(String)
-    timeout = Column(Integer)
     code = Column(String)
-    route = Column(String, nullable=True, unique=True)
+    timeout = Column(Integer)
+    route = Column(String, unique=True, index=True)
+    runtime = Column(String, default="runc")  # Ensure this is present
 
 def get_db():
     db = SessionLocal()

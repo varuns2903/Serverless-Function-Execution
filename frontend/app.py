@@ -43,6 +43,12 @@ def main():
                 language = st.selectbox("Language", ["python", "javascript"])
             with col2:
                 timeout = st.number_input("Timeout (seconds)", min_value=1, value=30)
+                runtime = st.selectbox("Runtime", ["runc", "runsc"])
+                st.caption("""
+                ℹ️ **Runtime Options**:
+                - `runc`: Default Docker runtime (fast, less isolated)
+                - `runsc`: gVisor sandboxed runtime (more secure, slightly slower)
+                """)
                 route_suffix = st.text_input("Route Suffix (optional)", placeholder="echo", help="Will be /fn/{unique_id}/{suffix}, leave blank for 'default'")
             code = st.text_area("Code", height=200, placeholder="Enter your code here")
             submit = st.form_submit_button("Deploy")
@@ -50,7 +56,7 @@ def main():
                 if not name or not code:
                     st.error("Function Name and Code are required!")
                 else:
-                    func = {"name": name, "language": language, "code": code, "timeout": timeout}
+                    func = {"name": name, "language": language, "code": code, "timeout": timeout, "runtime": runtime}
                     if route_suffix:
                         func["route"] = route_suffix
                     result = api_call("POST", "/functions/", func)

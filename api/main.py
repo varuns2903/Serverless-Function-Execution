@@ -1,23 +1,15 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from . import crud, models
-from .database import SessionLocal, engine
+from . import crud
+from .models import get_db
 from .execution import execute_function
 import logging
 import time  # Add for timestamp
 
 app = FastAPI()
-models.Base.metadata.create_all(bind=engine)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 def register_dynamic_route(app: FastAPI, route: str, func_id: int):
     async def dynamic_endpoint(payload: dict, db: Session = Depends(get_db)):
