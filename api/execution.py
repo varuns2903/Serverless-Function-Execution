@@ -1,111 +1,48 @@
-import docker
-import asyncio
-import tarfile
-import io
 import json
-import logging
+import tarfile
+import io  # Add this import
+import time
 from .container_pool import ContainerPool
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 pool = ContainerPool()
-client = docker.from_env()
 
-async def execute_function(func, payload):
-    # Use dictionary access instead of attribute access
-    container = pool.get_container(func["id"], func["language"], func["code"])
+async def execute_function(func: dict, payload: dict):
+    start_time = time.time()
+    errors = None
+    resources = {"cpu": 0.1, "memory": "128Mi"}  # Placeholder
+
     try:
-        start_time = asyncio.get_event_loop().time()
+        container = pool.get_container(func["id"], func["language"], func["code"])
         
+        # Prepare payload as a file
+        payload_str = json.dumps(payload)
+        tar_stream = io.BytesIO()
+        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+            payload_info = tarfile.TarInfo(name="payload.json")
+            payload_info.size = len(payload_str)
+            tar.addfile(payload_info, io.BytesIO(payload_str.encode()))
+        tar_stream.seek(0)
+        
+        # Inject payload into container
+        container.put_archive("/tmp", tar_stream)
+        
+        # Execute based on language
         if func["language"] == "python":
-            temp_file = "/tmp/script.py"
-            code_bytes = func["code"].encode('utf-8')
-            tar_stream = io.BytesIO()
-            with tarfile.open(fileobj=tar_stream, mode="w") as tar:
-                tarinfo = tarfile.TarInfo(name="script.py")
-                tarinfo.size = len(code_bytes)
-                tar.addfile(tarinfo, io.BytesIO(code_bytes))
-            tar_stream.seek(0)
-            logger.info(f"Writing code to {temp_file} in container {container.id}")
-            container.put_archive("/tmp", tar_stream)
-            cmd = f"python {temp_file}"
-        elif func["language"] == "javascript":
-            temp_file = "/tmp/script.js"
-            code_bytes = func["code"].encode('utf-8')
-            tar_stream = io.BytesIO()
-            with tarfile.open(fileobj=tar_stream, mode="w") as tar:
-                tarinfo = tarfile.TarInfo(name="script.js")
-                tarinfo.size = len(code_bytes)
-                tar.addfile(tarinfo, io.BytesIO(code_bytes))
-            tar_stream.seek(0)
-            logger.info(f"Writing code to {temp_file} in container {container.id}")
-            container.put_archive("/tmp", tar_stream)
-            cmd = f"node {temp_file}"
+            cmd = ["python", "/tmp/function.py"]
         else:
-            raise ValueError(f"Unsupported language: {func['language']}")
+            cmd = ["node", "/tmp/function.js"]
         
-        logger.info(f"Executing command: {cmd}")
-        # Pass payload as JSON string to stdin
-        payload_json = json.dumps(payload) if payload else "{}"
+        exit_code, output = container.exec_run(cmd, stdin=True, stream=False)
+        output = output.decode()
         
-        # Create exec instance with stdin enabled
-        exec_id = container.client.api.exec_create(
-            container.id,
-            cmd,
-            stdin=True,
-            stdout=True,
-            stderr=True,
-            environment={"PYTHONUNBUFFERED": "1"}
-        )["Id"]
+        if exit_code != 0:
+            errors = output
+            output = ""
         
-        # Start execution, send payload, and capture output
-        logger.info(f"Sending payload: {payload_json}")
-        socket = container.client.api.exec_start(exec_id, socket=True, detach=False)
-        socket._sock.send(payload_json.encode('utf-8'))  # Write to stdin
-        socket._sock.shutdown(1)  # Close stdin (SHUT_WR)
-        
-        # Read output from the socket, stripping Docker stream headers
-        output = b""
-        while True:
-            data = socket._sock.recv(4096)
-            if not data:
-                break
-            while len(data) >= 8:
-                stream_type = data[0]  # 1 = stdout, 2 = stderr
-                length = int.from_bytes(data[4:8], "big")  # Payload length
-                if len(data) < 8 + length:
-                    break
-                payload_data = data[8:8 + length]
-                if stream_type in (1, 2):  # stdout or stderr
-                    output += payload_data
-                data = data[8 + length:]
-        output = output.decode('utf-8')
-        socket.close()
-        
-        # Wait for execution to complete with a timeout
-        async def wait_for_exec():
-            while True:
-                result = container.client.api.exec_inspect(exec_id)
-                if not result["Running"]:
-                    return result
-                await asyncio.sleep(0.1)
-        
-        exec_result = await asyncio.wait_for(wait_for_exec(), timeout=func["timeout"] or 30)
-        response_time = asyncio.get_event_loop().time() - start_time
-        
-        logger.info(f"Execution completed with exit code: {exec_result['ExitCode']}, output: {output}")
-        if exec_result["ExitCode"] != 0:
-            return output, response_time, f"Execution failed with exit code {exec_result['ExitCode']}: {output}", {"cpu": "unknown"}
-        return output, response_time, None, {"cpu": "unknown"}
-    except asyncio.TimeoutError:
-        container.kill()
-        response_time = asyncio.get_event_loop().time() - start_time
-        logger.error("Execution timed out")
-        return "Timeout", response_time, "timeout", {"cpu": "unknown"}
+        pool.release_container(container)
     except Exception as e:
-        response_time = asyncio.get_event_loop().time() - start_time
-        error_msg = f"Execution error: {str(e)}"
-        logger.error(error_msg)
-        return "Error", response_time, error_msg, {"cpu": "unknown"}
+        output = ""
+        errors = str(e)
+    
+    response_time = time.time() - start_time
+    return output, response_time, errors, resources

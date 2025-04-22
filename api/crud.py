@@ -9,7 +9,7 @@ def create_function(db: Session, func: dict):
     db.commit()
     db.refresh(db_func)
     # Set route after ID is assigned
-    unique_id = str(uuid.uuid4())[:16]
+    unique_id = str(uuid.uuid4())
     user_specified = func.get("route", "").strip("/") or ""
     db_func.route = f"/fn/{unique_id}/{user_specified}"
     db.commit()

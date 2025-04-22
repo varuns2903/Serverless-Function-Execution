@@ -65,7 +65,6 @@ def main():
             display_columns = ["id", "name", "language", "code", "timeout", "route"]
             st.dataframe(df[display_columns], use_container_width=True)
 
-            # Use session state to keep track of selected function
             if "selected_func_id" not in st.session_state:
                 st.session_state.selected_func_id = None
 
@@ -118,7 +117,6 @@ def main():
         else:
             st.info("No functions available.")
 
-
     elif page == "Execute Function":
         st.header("Execute a Function")
         execution_method = st.radio("Execute by:", ["Function ID", "Route"], horizontal=True)
@@ -152,18 +150,31 @@ def main():
         route_filter = st.text_input("Filter by Route (optional, leave blank for all)", placeholder="/fn/abc12345/echo")
         metrics = api_call("GET", "/metrics/" if not route_filter else f"/metrics/?route={route_filter}")
         if metrics:
+            # Handle single dict or list of dicts
+            if isinstance(metrics, dict):
+                metrics = [metrics]  # Wrap single dict in list
             df = pd.DataFrame(metrics)
             if not df.empty:
-                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+                # Ensure required columns exist
+                if "timestamp" not in df.columns:
+                    df["timestamp"] = pd.to_datetime(datetime.now())
+                else:
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+                if "errors" not in df.columns:
+                    df["errors"] = None
                 if "route" not in df.columns:
-                    df["route"] = [route_filter or "unknown" for _ in range(len(df))]
-                st.write("Metrics Data:", df[["route", "timestamp", "response_time", "errors", "resources"]])
+                    df["route"] = route_filter or "unknown"
+                if "resources" in df.columns:
+                    # Flatten resources dict if needed
+                    df["cpu_usage"] = df["resources"].apply(lambda x: x.get("cpu", "N/A") if isinstance(x, dict) else "N/A")
+                    df["memory_usage"] = df["resources"].apply(lambda x: x.get("memory", "N/A") if isinstance(x, dict) else "N/A")
+                st.write("Metrics Data:", df[["route", "timestamp", "response_time", "cpu_usage", "memory_usage", "errors"]])
                 fig = px.line(df, x="timestamp", y="response_time", color="route", 
                               title="Response Time Over Time", labels={"response_time": "Response Time (s)"})
                 st.plotly_chart(fig, use_container_width=True)
                 st.subheader("Statistics")
                 col1, col2, col3 = st.columns(3)
-                col1.metric("Average Response Time", f"{df['response_time'].mean():.2f} s")
+                col1.metric("Average Response Time", f"{df['response_time'].mean():.2f} s" if 'response_time' in df else "N/A")
                 col2.metric("Execution Count", len(df))
                 col3.metric("Error Rate", f"{(df['errors'].notnull().sum() / len(df) * 100):.1f}%")
             else:
